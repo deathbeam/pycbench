@@ -6,36 +6,52 @@ import re
 import subprocess
 import sys
 from argparse import ArgumentParser
+import colorlog
+import logging
+
+handler = colorlog.StreamHandler()
+handler.setFormatter(colorlog.ColoredFormatter("%(log_color)s%(levelname)-8s %(message)s"))
+logger = colorlog.getLogger('pycbench')
+logger.setLevel(logging.DEBUG)
+logger.addHandler(handler)
+
 basedir = os.path.dirname(os.path.realpath(__file__))
 
-def runCbench(throughput, controllerIp, controllerPort, msPerTest,
-        testsPerSwitch, numSwitches, numMacs, warmup, delay):
+def runCbench(throughput, controller, port, millis,
+        loops, switches, macs, warmup, delay):
     args = [
         os.path.realpath(basedir + "/oflops/cbench/cbench"),
-        "-c", controllerIp,
-        "-p", str(controllerPort),
-        "-m", str(msPerTest),
-        "-l", str(testsPerSwitch),
-        "-s", str(numSwitches),
-        "-M", str(numMacs),
+        "-c", controller,
+        "-p", str(port),
+        "-m", str(millis),
+        "-l", str(loops),
+        "-s", str(switches),
+        "-M", str(macs),
         "-w", str(warmup),
         "-D", str(delay)
         ]
 
     if throughput: args.append("-t")
+    
 
-    result = subprocess.check_output(args)
-
-    return {
-        'result': result,
+    configuration = {
         'mode': 'througput' if throughput else 'latency',
-        'controller': controllerIp + ':' + str(controllerPort),
-        'switches': numSwitches,
-        'macs': numMacs,
-        'loops': testsPerSwitch,
+        'controller': controller + ':' + str(port),
+        'switches': switches,
+        'macs': macs,
+        'loops': loops,
         'warmup': warmup,
-        'msPerTest': msPerTest
+        'millis': millis,
+        'delay': delay
         }
+
+    try:
+        logger.debug("Running CBench test. Please wait...")
+        configuration['result'] = subprocess.check_output(args, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        logger.error(e)
+        dumpJson(configuration, "stdout")
+        sys.exit(1)
 
 def formatResult(output):
     cbenchText = output['result']
@@ -62,8 +78,15 @@ def mergeResults(cbenchData, outputFile):
     result.append(cbenchData)
     return result
 
+def format_json(jsonDict):
+    return json.dumps(
+            jsonDict,
+            sort_keys=True,
+            indent=4,
+            separators=(',', ': '))
+
 def dumpJson(jsonResult, outputFile):
-    result = json.dumps(jsonResult)
+    result = format_json(jsonResult)
 
     if outputFile == "stdout":
         print(result)
@@ -116,7 +139,6 @@ def run():
                         nargs='?', const="stdout", type=str,
                         help='Place to store the result (stdout)')
 
-
     # Parse arguments from command line
     a = parser.parse_args()
 
@@ -132,13 +154,13 @@ def run():
     if a.delay == None:      a.delay = 0
 
     cBenchResult = runCbench(
-            througput=a.througput,
-            controllerIp=a.controller,
-            controllerPort=a.port,
-            msPerTest=a.millis,
-            testsPerSwitch=a.loops,
-            numSwitches=a.switches,
-            numMacs=a.macs,
+            throughput=a.throughput,
+            controller=a.controller,
+            port=a.port,
+            millis=a.millis,
+            loops=a.loops,
+            switches=a.switches,
+            macs=a.macs,
             warmup=a.warmup,
             delay=a.delay)
 
