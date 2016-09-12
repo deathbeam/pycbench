@@ -1,0 +1,6 @@
+[submodule "oflops"]
+	path = oflops
+	url = https://github.com/andi-bigswitch/oflops
+[submodule "openflow"]
+	path = openflow
+	url = git://gitosis.stanford.edu/openflow.git
